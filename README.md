@@ -2,7 +2,7 @@
 
 A secure banking ledger application with role-based access control, account onboarding workflows, and a full audit trail.
 
-**Live demo**: _[add your deployed URL here]_
+**Live demo**: https://ledgerline-ten-tau.vercel.app
 
 ---
 

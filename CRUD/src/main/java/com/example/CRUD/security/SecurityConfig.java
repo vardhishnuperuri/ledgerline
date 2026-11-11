@@ -62,7 +62,8 @@ public class SecurityConfig {
         config.setAllowedOrigins(List.of(
             "http://localhost:5173",
             "https://ledgerline.vercel.app",
-            "https://ledgerline-vardhishnuperuri.vercel.app"
+            "https://ledgerline-vardhishnuperuri.vercel.app",
+            "https://ledgerline-ten-tau.vercel.app"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
