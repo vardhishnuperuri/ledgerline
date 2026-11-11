@@ -1,0 +1,26 @@
+# Maven
+CRUD/target/
+CRUD/*.log
+CRUD/token.txt
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.class
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Env / secrets
+.env
+*.env
+
+# Junk files created by accident
+cd
+set
+mvnw
+backend.log
+start-backend.bat
+start-frontend.bat
