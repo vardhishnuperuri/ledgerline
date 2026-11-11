@@ -1,0 +1,154 @@
+import { useState, useEffect } from 'react';
+import api from '../api';
+
+const ACTION_COLORS = {
+  LOGIN: 'badge-blue',
+  REGISTER: 'badge-green',
+  CREATE_ACCOUNT: 'badge-green',
+  DEPOSIT: 'badge-green',
+  WITHDRAWAL: 'badge-red',
+  TRANSFER: 'badge-blue',
+};
+
+export default function Audit() {
+  const [logs, setLogs] = useState([]);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [filterAction, setFilterAction] = useState('ALL');
+
+  useEffect(() => {
+    api.get('/audit')
+      .then(res => setLogs(res.data.reverse()))
+      .catch(() => setError('Failed to load audit logs'));
+  }, []);
+
+  const actions = ['ALL', ...new Set(logs.map(l => l.action))];
+
+  const filtered = logs.filter(l => {
+    const matchAction = filterAction === 'ALL' || l.action === filterAction;
+    const matchSearch = !search ||
+      l.actorUsername.toLowerCase().includes(search.toLowerCase()) ||
+      l.action.toLowerCase().includes(search.toLowerCase()) ||
+      (l.detail || '').toLowerCase().includes(search.toLowerCase());
+    return matchAction && matchSearch;
+  });
+
+  const stats = {
+    total: logs.length,
+    logins: logs.filter(l => l.action === 'LOGIN').length,
+    transactions: logs.filter(l => ['DEPOSIT', 'WITHDRAWAL', 'TRANSFER'].includes(l.action)).length,
+    accounts: logs.filter(l => l.action === 'CREATE_ACCOUNT').length,
+  };
+
+  return (
+    <div>
+      <div className="page-header">
+        <div className="page-title">Audit Log</div>
+        <div className="page-subtitle">Append-only record of every action in the system</div>
+      </div>
+
+      {error && <div className="alert alert-error"><span>⚠</span> {error}</div>}
+
+      {/* Stats */}
+      <div className="stats-grid">
+        <div className="stat-card">
+          <div className="stat-label">Total Events</div>
+          <div className="stat-value">{stats.total}</div>
+          <div className="stat-sub">all time</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Logins</div>
+          <div className="stat-value">{stats.logins}</div>
+          <div className="stat-sub">authentication events</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Transactions</div>
+          <div className="stat-value">{stats.transactions}</div>
+          <div className="stat-sub">money movements</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Accounts Created</div>
+          <div className="stat-value">{stats.accounts}</div>
+          <div className="stat-sub">new accounts</div>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-header">
+          <span className="card-title">Events ({filtered.length})</span>
+        </div>
+
+        {/* Filters */}
+        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+          <input
+            className="form-input"
+            placeholder="Search by actor, action or detail..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ flex: 1, minWidth: '200px' }}
+          />
+          <select className="form-select" value={filterAction} onChange={e => setFilterAction(e.target.value)}
+            style={{ width: 'auto', minWidth: '150px' }}>
+            {actions.map(a => <option key={a} value={a}>{a === 'ALL' ? 'All Actions' : a}</option>)}
+          </select>
+        </div>
+
+        {filtered.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">📋</div>
+            <div className="empty-state-text">No audit events found.</div>
+          </div>
+        ) : (
+          <div className="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Time</th>
+                  <th>Actor</th>
+                  <th>Action</th>
+                  <th>Entity</th>
+                  <th>Detail</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(log => (
+                  <tr key={log.id}>
+                    <td style={{ color: 'var(--gray-400)', fontSize: '0.78rem' }}>{log.id}</td>
+                    <td style={{ whiteSpace: 'nowrap', color: 'var(--gray-500)', fontSize: '0.82rem' }}>
+                      {new Date(log.createdAt).toLocaleString()}
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{
+                          width: 24, height: 24, borderRadius: '50%',
+                          background: 'linear-gradient(135deg, var(--blue), #6366f1)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '0.65rem', fontWeight: 700, color: 'white', flexShrink: 0
+                        }}>
+                          {log.actorUsername[0].toUpperCase()}
+                        </div>
+                        <span style={{ fontWeight: 500, fontSize: '0.875rem' }}>{log.actorUsername}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <span className={`badge ${ACTION_COLORS[log.action] || 'badge-gray'}`}>
+                        {log.action}
+                      </span>
+                    </td>
+                    <td style={{ fontSize: '0.82rem', color: 'var(--gray-500)' }}>
+                      {log.entityType ? `${log.entityType} #${log.entityId}` : '—'}
+                    </td>
+                    <td style={{ fontSize: '0.82rem', color: 'var(--gray-600)', maxWidth: '280px' }}>
+                      {log.detail || '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
