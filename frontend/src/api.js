@@ -19,4 +19,7 @@ api.interceptors.response.use(
   }
 );
 
+// Keep backend alive — prevents cold starts on free-tier hosting
+setInterval(() => api.get('/health').catch(() => {}), 4 * 60 * 1000);
+
 export default api;
