@@ -2,6 +2,47 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api';
 
+function Sparkline({ transactions, account }) {
+  if (!transactions.length) return null;
+  const points = [];
+  let running = 0;
+  [...transactions].reverse().forEach(tx => {
+    const amt = parseFloat(tx.amount);
+    if (tx.type === 'DEPOSIT') running += amt;
+    else if (tx.type === 'WITHDRAWAL') running -= amt;
+    else if (tx.type === 'TRANSFER') {
+      running += tx.toAccountNumber === account?.accountNumber ? amt : -amt;
+    }
+    points.push(running);
+  });
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const range = max - min || 1;
+  const W = 300, H = 60, pad = 4;
+  const xs = points.map((_, i) => pad + (i / Math.max(points.length - 1, 1)) * (W - pad * 2));
+  const ys = points.map(v => H - pad - ((v - min) / range) * (H - pad * 2));
+  const d = xs.map((x, i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ');
+  const fill = `${d} L${xs[xs.length-1].toFixed(1)},${H} L${xs[0].toFixed(1)},${H} Z`;
+  return (
+    <div className="stat-card" style={{ gridColumn: 'span 2' }}>
+      <div className="stat-label">Balance History</div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 60, display: 'block', marginTop: 4 }}>
+        <defs>
+          <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={fill} fill="url(#sg)" />
+        <path d={d} fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinejoin="round" />
+      </svg>
+      <div className="stat-sub" style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <span>${min.toFixed(2)}</span><span>${max.toFixed(2)}</span>
+      </div>
+    </div>
+  );
+}
+
 function StatementSkeleton() {
   return (
     <div>
@@ -139,6 +180,7 @@ export default function Statement() {
             <div className="stat-value">{transactions.length}</div>
             <div className="stat-sub">total records</div>
           </div>
+          {transactions.length > 1 && <Sparkline transactions={transactions} account={account} />}
         </div>
       )}
 

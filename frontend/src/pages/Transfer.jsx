@@ -24,7 +24,9 @@ export default function Transfer() {
   function reset() { setError(''); setSuccess(''); }
 
   async function handleTransfer(e) {
-    e.preventDefault(); reset(); setLoading(true);
+    e.preventDefault(); reset();
+    if (!window.confirm(`Transfer $${transferForm.amount} from account #${transferForm.fromAccountId} to #${transferForm.toAccountId}?`)) return;
+    setLoading(true);
     try {
       await api.post('/transactions/transfer', {
         ...transferForm,
@@ -42,7 +44,9 @@ export default function Transfer() {
   }
 
   async function handleWithdraw(e) {
-    e.preventDefault(); reset(); setLoading(true);
+    e.preventDefault(); reset();
+    if (!window.confirm(`Withdraw $${withdrawForm.amount} from account #${withdrawForm.accountId}?`)) return;
+    setLoading(true);
     try {
       await api.post('/transactions/withdraw', {
         ...withdrawForm,

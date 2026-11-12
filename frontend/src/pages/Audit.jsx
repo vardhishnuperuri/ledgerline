@@ -42,12 +42,15 @@ function AuditSkeleton() {
   );
 }
 
+const PAGE_SIZE = 20;
+
 export default function Audit() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [filterAction, setFilterAction] = useState('ALL');
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     api.get('/audit')
@@ -68,6 +71,9 @@ export default function Audit() {
       (l.detail || '').toLowerCase().includes(search.toLowerCase());
     return matchAction && matchSearch;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const stats = {
     total: logs.length,
@@ -118,10 +124,10 @@ export default function Audit() {
             className="form-input"
             placeholder="Search by actor, action or detail..."
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => { setSearch(e.target.value); setPage(1); }}
             style={{ flex: 1, minWidth: '200px' }}
           />
-          <select className="form-select" value={filterAction} onChange={e => setFilterAction(e.target.value)}
+          <select className="form-select" value={filterAction} onChange={e => { setFilterAction(e.target.value); setPage(1); }}
             style={{ width: 'auto', minWidth: '150px' }}>
             {actions.map(a => <option key={a} value={a}>{a === 'ALL' ? 'All Actions' : a}</option>)}
           </select>
@@ -146,7 +152,7 @@ export default function Audit() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(log => (
+                {paginated.map(log => (
                   <tr key={log.id}>
                     <td style={{ color: 'var(--gray-400)', fontSize: '0.78rem' }}>{log.id}</td>
                     <td style={{ whiteSpace: 'nowrap', color: 'var(--gray-500)', fontSize: '0.82rem' }}>
@@ -180,6 +186,30 @@ export default function Audit() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <span style={{ fontSize: '0.82rem', color: 'var(--gray-500)' }}>
+              Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+            </span>
+            <div style={{ display: 'flex', gap: '0.35rem' }}>
+              <button className="btn btn-sm btn-outline" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>← Prev</button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                .reduce((acc, p, idx, arr) => {
+                  if (idx > 0 && p - arr[idx - 1] > 1) acc.push('...');
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((p, i) => p === '...' ? (
+                  <span key={`e${i}`} style={{ padding: '0.3rem 0.5rem', color: 'var(--gray-400)' }}>…</span>
+                ) : (
+                  <button key={p} className={`btn btn-sm ${page === p ? 'btn-primary' : 'btn-outline'}`} onClick={() => setPage(p)}>{p}</button>
+                ))}
+              <button className="btn btn-sm btn-outline" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>Next →</button>
+            </div>
           </div>
         )}
       </div>

@@ -36,6 +36,7 @@ export default function AdminPanel() {
   }
 
   async function approve(id) {
+    if (!window.confirm('Approve this account request?')) return;
     try {
       await api.post(`/accounts/${id}/approve`);
       setSuccess('Account approved successfully');
@@ -46,6 +47,7 @@ export default function AdminPanel() {
   }
 
   async function reject(id) {
+    if (!window.confirm('Reject this account request? This cannot be undone.')) return;
     try {
       await api.post(`/accounts/${id}/reject`);
       setSuccess('Account request rejected');
