@@ -2,6 +2,7 @@ package com.example.CRUD.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public class RegisterRequest {
@@ -10,7 +11,10 @@ public class RegisterRequest {
     private String username;
 
     @NotBlank
-    @Size(min = 6)
+    @Pattern(
+        regexp = "^(?=.*[A-Z])(?=.*\\d).{8,}$",
+        message = "Password must be at least 8 characters with one uppercase letter and one number"
+    )
     private String password;
 
     @NotBlank

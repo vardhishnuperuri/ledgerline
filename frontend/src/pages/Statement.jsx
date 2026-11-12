@@ -2,23 +2,82 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api';
 
+function StatementSkeleton() {
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+        <div className="skeleton" style={{ height: 34, width: 80, borderRadius: 8 }} />
+        <div>
+          <div className="skeleton" style={{ height: 24, width: 200, marginBottom: 6 }} />
+          <div className="skeleton" style={{ height: 14, width: 140 }} />
+        </div>
+      </div>
+      <div className="stats-grid" style={{ marginBottom: '1.5rem' }}>
+        {[1,2,3,4].map(i => (
+          <div key={i} className="skeleton-card">
+            <div className="skeleton skeleton-text" style={{ width: '50%' }} />
+            <div className="skeleton" style={{ height: 36, width: '60%', marginBottom: 8 }} />
+            <div className="skeleton skeleton-text" style={{ width: '40%' }} />
+          </div>
+        ))}
+      </div>
+      <div className="card">
+        <div className="skeleton skeleton-title" />
+        {[1,2,3,4,5].map(i => (
+          <div key={i} className="skeleton-row">
+            <div className="skeleton" style={{ height: 14, width: '15%' }} />
+            <div className="skeleton" style={{ height: 14, width: '10%' }} />
+            <div className="skeleton" style={{ height: 14, width: '12%' }} />
+            <div className="skeleton" style={{ height: 14, flex: 1 }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function exportCSV(transactions, accountNumber) {
+  const headers = ['Date', 'Type', 'Amount', 'From', 'To', 'Description', 'Status'];
+  const rows = transactions.map(tx => [
+    new Date(tx.createdAt).toLocaleString(),
+    tx.type,
+    tx.amount,
+    tx.fromAccountNumber || '',
+    tx.toAccountNumber || '',
+    tx.description || '',
+    tx.status,
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `statement-${accountNumber}-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function Statement() {
   const { accountId } = useParams();
   const [transactions, setTransactions] = useState([]);
   const [account, setAccount] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('ALL');
   const navigate = useNavigate();
-  const username = localStorage.getItem('username');
 
   useEffect(() => {
-    api.get(`/accounts/${accountId}`)
-      .then(res => setAccount(res.data))
-      .catch(() => {});
-    api.get(`/transactions/statement/${accountId}`)
-      .then(res => setTransactions(res.data))
-      .catch(() => setError('Failed to load statement'));
+    Promise.all([
+      api.get(`/accounts/${accountId}`),
+      api.get(`/transactions/statement/${accountId}`)
+    ]).then(([accRes, txRes]) => {
+      setAccount(accRes.data);
+      setTransactions(txRes.data);
+    }).catch(() => setError('Failed to load statement'))
+      .finally(() => setLoading(false));
   }, [accountId]);
+
+  if (loading) return <StatementSkeleton />;
 
   const filtered = filter === 'ALL' ? transactions : transactions.filter(t => t.type === filter);
 
@@ -33,18 +92,16 @@ export default function Statement() {
   function amountClass(tx) {
     if (tx.type === 'DEPOSIT') return 'amount-positive';
     if (tx.type === 'WITHDRAWAL') return 'amount-negative';
-    if (tx.type === 'TRANSFER') {
+    if (tx.type === 'TRANSFER')
       return tx.toAccountNumber === account?.accountNumber ? 'amount-positive' : 'amount-negative';
-    }
     return 'amount-neutral';
   }
 
   function amountSign(tx) {
     if (tx.type === 'DEPOSIT') return '+';
     if (tx.type === 'WITHDRAWAL') return '-';
-    if (tx.type === 'TRANSFER') {
+    if (tx.type === 'TRANSFER')
       return tx.toAccountNumber === account?.accountNumber ? '+' : '-';
-    }
     return '';
   }
 
@@ -60,7 +117,6 @@ export default function Statement() {
 
       {error && <div className="alert alert-error"><span>⚠</span> {error}</div>}
 
-      {/* Account Summary */}
       {account && (
         <div className="stats-grid" style={{ marginBottom: '1.5rem' }}>
           <div className="stat-card">
@@ -86,17 +142,25 @@ export default function Statement() {
         </div>
       )}
 
-      {/* Transactions Table */}
       <div className="card">
         <div className="card-header">
           <span className="card-title">Transaction History</span>
-          <div style={{ display: 'flex', gap: '0.4rem' }}>
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
             {['ALL', 'DEPOSIT', 'WITHDRAWAL', 'TRANSFER'].map(f => (
               <button key={f} className={`btn btn-sm ${filter === f ? 'btn-dark' : 'btn-outline'}`}
                 onClick={() => setFilter(f)} style={{ fontSize: '0.75rem', padding: '0.3rem 0.65rem' }}>
                 {f === 'ALL' ? 'All' : f.charAt(0) + f.slice(1).toLowerCase()}
               </button>
             ))}
+            {transactions.length > 0 && (
+              <button
+                className="btn btn-sm btn-outline"
+                onClick={() => exportCSV(transactions, account?.accountNumber || accountId)}
+                style={{ fontSize: '0.75rem', padding: '0.3rem 0.65rem', marginLeft: '0.5rem' }}
+              >
+                ⬇ Export CSV
+              </button>
+            )}
           </div>
         </div>
 

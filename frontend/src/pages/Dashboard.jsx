@@ -8,8 +8,41 @@ const STATUS_BADGE = {
   REJECTED: { label: 'Rejected', color: '#dc2626', bg: '#fee2e2' },
 };
 
+function DashboardSkeleton() {
+  return (
+    <div>
+      <div className="skeleton-card" style={{ marginBottom: '1.5rem', background: 'var(--navy)', border: 'none', borderRadius: '24px', padding: '2rem 2.5rem' }}>
+        <div className="skeleton" style={{ height: 28, width: '30%', marginBottom: 8, opacity: 0.3 }} />
+        <div className="skeleton" style={{ height: 16, width: '20%', opacity: 0.2 }} />
+      </div>
+      <div className="stats-grid">
+        {[1,2,3,4].map(i => (
+          <div key={i} className="skeleton-card">
+            <div className="skeleton skeleton-text" style={{ width: '50%' }} />
+            <div className="skeleton" style={{ height: 36, width: '60%', marginBottom: 8 }} />
+            <div className="skeleton skeleton-text" style={{ width: '40%' }} />
+          </div>
+        ))}
+      </div>
+      <div className="skeleton-card">
+        <div className="skeleton skeleton-title" />
+        <div className="accounts-grid">
+          {[1,2].map(i => (
+            <div key={i} style={{ background: 'var(--gray-100)', borderRadius: '16px', padding: '1.5rem', height: 160 }}>
+              <div className="skeleton" style={{ height: 26, width: 36, marginBottom: 20 }} />
+              <div className="skeleton" style={{ height: 14, width: '60%', marginBottom: 8 }} />
+              <div className="skeleton" style={{ height: 32, width: '50%' }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [accounts, setAccounts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [requesting, setRequesting] = useState(false);
   const [showRequestForm, setShowRequestForm] = useState(false);
@@ -27,6 +60,8 @@ export default function Dashboard() {
       setAccounts(res.data);
     } catch {
       setError('Failed to load accounts');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -55,6 +90,8 @@ export default function Dashboard() {
     if (h < 17) return 'Good afternoon';
     return 'Good evening';
   };
+
+  if (loading) return <DashboardSkeleton />;
 
   return (
     <div>

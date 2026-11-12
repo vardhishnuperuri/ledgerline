@@ -10,8 +10,41 @@ const ACTION_COLORS = {
   TRANSFER: 'badge-blue',
 };
 
+function AuditSkeleton() {
+  return (
+    <div>
+      <div className="page-header">
+        <div className="skeleton" style={{ height: 28, width: '20%', marginBottom: 8 }} />
+        <div className="skeleton" style={{ height: 16, width: '35%' }} />
+      </div>
+      <div className="stats-grid">
+        {[1,2,3,4].map(i => (
+          <div key={i} className="skeleton-card">
+            <div className="skeleton skeleton-text" style={{ width: '50%' }} />
+            <div className="skeleton" style={{ height: 36, width: '40%', marginBottom: 8 }} />
+            <div className="skeleton skeleton-text" style={{ width: '60%' }} />
+          </div>
+        ))}
+      </div>
+      <div className="card">
+        <div className="skeleton skeleton-title" />
+        {[1,2,3,4,5].map(i => (
+          <div key={i} className="skeleton-row">
+            <div className="skeleton" style={{ height: 14, width: '8%' }} />
+            <div className="skeleton" style={{ height: 14, width: '15%' }} />
+            <div className="skeleton" style={{ height: 14, width: '12%' }} />
+            <div className="skeleton" style={{ height: 14, width: '10%' }} />
+            <div className="skeleton" style={{ height: 14, flex: 1 }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Audit() {
   const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [filterAction, setFilterAction] = useState('ALL');
@@ -19,8 +52,11 @@ export default function Audit() {
   useEffect(() => {
     api.get('/audit')
       .then(res => setLogs(res.data.reverse()))
-      .catch(() => setError('Failed to load audit logs'));
+      .catch(() => setError('Failed to load audit logs'))
+      .finally(() => setLoading(false));
   }, []);
+
+  if (loading) return <AuditSkeleton />;
 
   const actions = ['ALL', ...new Set(logs.map(l => l.action))];
 
@@ -49,7 +85,6 @@ export default function Audit() {
 
       {error && <div className="alert alert-error"><span>⚠</span> {error}</div>}
 
-      {/* Stats */}
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-label">Total Events</div>
@@ -78,7 +113,6 @@ export default function Audit() {
           <span className="card-title">Events ({filtered.length})</span>
         </div>
 
-        {/* Filters */}
         <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
           <input
             className="form-input"

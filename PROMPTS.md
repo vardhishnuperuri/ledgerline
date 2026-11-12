@@ -64,7 +64,28 @@ This file documents how I used Amazon Q (AI coding assistant) during this projec
 
 ---
 
-## Entry 6 — 2026-10-23 — Deadlock prevention in transfers
+## Entry 7 — 2026-11-12 — Test suite: CrudApplicationTests missing test profile
+
+**What I asked**: Run the full test suite to verify all tests pass before pushing.
+
+**What the tool produced**: A passing run for AuthIntegrationTest and AccountWorkflowTest, but CrudApplicationTests (the basic context load test) was silently failing because it was missing `@ActiveProfiles("test")` and `@Import(TestRedisConfig.class)`.
+
+**What was wrong**: The AI-generated `CrudApplicationTests` used `@SpringBootTest` with no profile, so it tried to load the full application context including Redis and PostgreSQL — neither of which is available in the test environment. The test was failing with `No qualifying bean of type StringRedisTemplate`.
+
+**What I did instead**: Added `@ActiveProfiles("test")` and `@Import(TestRedisConfig.class)` to `CrudApplicationTests`. This makes it use the H2 in-memory database and the mocked Redis bean, consistent with the other test classes. All 26 tests now pass.
+
+---
+
+## Entry 8 — 2026-11-12 — BCrypt strength and Redis connection latency
+
+**What I asked**: Investigate why login was slow on mobile and other devices.
+
+**What the tool produced**: An explanation pointing to free-tier cold starts, BCrypt cost, and Redis connection latency as the three causes.
+
+**What was wrong**: The AI's default `BCryptPasswordEncoder()` uses strength 10, which is fine for a powerful server but adds 200–500ms per login on a free-tier CPU. It also had no Redis connection timeout — a slow Redis connection on first use could hang the login request for several seconds before failing open.
+
+**What I did instead**: Lowered BCrypt strength to 8 (still secure, ~4x faster on low-CPU hosts), added `spring.data.redis.timeout=500ms` and `connect-timeout=500ms` to cap Redis latency, added a Lettuce connection pool with `min-idle=1` to keep one warm connection, and added a keep-alive ping in `api.js` every 4 minutes to prevent the backend from sleeping on free-tier hosting.
+
 
 **What I asked**: How do you prevent deadlocks when two concurrent transfers lock the same two accounts in opposite order?
 
