@@ -9,9 +9,9 @@ A secure banking ledger application with role-based access control, account onbo
 ## What it does
 
 - Account holders register, request accounts (PENDING), and wait for admin approval
-- Admins approve or reject account requests, manage users, and view the audit log
-- Auditors have read-only access to all accounts and the audit trail
-- Every sensitive action (login, transfer, approval, rejection) is recorded in an append-only audit log
+- Admins approve or reject account requests, close accounts, manage users, and view the audit log
+- Auditors have read-only access to all accounts and the audit trail with date/actor filtering
+- Every sensitive action (login, transfer, approval, rejection, closure) is recorded in an append-only audit log
 - Transfers use pessimistic locking and idempotency keys to prevent double-spend and race conditions
 
 ---
@@ -20,9 +20,9 @@ A secure banking ledger application with role-based access control, account onbo
 
 | Role | Can do |
 |------|--------|
-| ADMIN | Approve/reject accounts, create users, deposit funds, view all accounts, view audit log |
+| ADMIN | Approve/reject/close accounts, create users, deposit funds, view all accounts, view audit log |
 | ACCOUNT_HOLDER | Request accounts, withdraw, transfer between own accounts, view own statements |
-| AUDITOR | Read-only access to all accounts and audit log |
+| AUDITOR | Read-only access to all accounts and audit log with filters |
 
 ---
 
@@ -92,6 +92,7 @@ App available at `http://localhost:80`
 | ADMIN_USERNAME | admin | Bootstrap admin username |
 | ADMIN_PASSWORD | Admin@LedgerLine1 | Bootstrap admin password |
 | ADMIN_EMAIL | admin@ledgerline.com | Bootstrap admin email |
+| VITE_API_URL | http://localhost:8080/api | Backend URL for frontend — set in Vercel dashboard for production |
 
 ---
 
@@ -104,7 +105,7 @@ mvn test -Dspring.profiles.active=test
 
 Tests use H2 in-memory database — no PostgreSQL required.
 
-**14 tests** covering:
+**26 tests** across 4 test classes covering:
 - Register and login flow
 - Wrong password rejection
 - Duplicate username rejection
@@ -114,6 +115,9 @@ Tests use H2 in-memory database — no PostgreSQL required.
 - Admin can approve/reject pending accounts
 - Regular user cannot approve accounts (403)
 - Deposit on PENDING account is blocked
+- Transfer between accounts
+- Insufficient funds rejection
+- Idempotency key prevents duplicate transactions
 
 ---
 
@@ -136,6 +140,7 @@ Tests use H2 in-memory database — no PostgreSQL required.
 | GET | /api/accounts/pending | ADMIN | Pending requests |
 | POST | /api/accounts/{id}/approve | ADMIN | Approve request |
 | POST | /api/accounts/{id}/reject | ADMIN | Reject request |
+| DELETE | /api/accounts/{id} | ADMIN | Close account (soft-delete, requires zero balance) |
 
 ### Transactions
 | Method | Path | Auth | Description |
@@ -148,7 +153,8 @@ Tests use H2 in-memory database — no PostgreSQL required.
 ### Audit
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | /api/audit | ADMIN, AUDITOR | All audit events |
+| GET | /api/audit | ADMIN, AUDITOR | Paginated audit events with filters |
+| GET | /api/audit?actor=alice&action=LOGIN&from=...&to=...&page=0&size=20 | ADMIN, AUDITOR | Filtered + paginated |
 | GET | /api/audit/{entityType}/{entityId} | ADMIN, AUDITOR | Events for entity |
 
 ---
@@ -162,7 +168,8 @@ CRUD/              Spring Boot backend
   controller/      REST endpoints
   service/         Business logic + audit logging
   entity/          JPA entities (User, Account, Transaction, AuditLog)
-  security/        JWT filter, SecurityConfig
+  repository/      Spring Data JPA + custom paginated audit query
+  security/        JWT filter, SecurityConfig, RateLimitFilter (Redis)
   exception/       Global error handler
   db/migration/    Flyway SQL migrations (V1, V2, V3)
 ```
@@ -178,5 +185,7 @@ Key decisions:
 - Pessimistic row locking on transfers, accounts locked in ID order to prevent deadlocks
 - Idempotency keys prevent duplicate transactions on network retry
 - Audit log is append-only — no delete or update endpoints exposed
-- BCrypt password hashing, JWT with configurable expiry
+- BCrypt password hashing (strength 8), JWT with configurable expiry
 - Transactions blocked on non-ACTIVE accounts
+- Redis rate limiting on auth endpoints — fails open so Redis outage never blocks login
+- Account closure is soft-delete (CLOSED status) — financial records are never hard-deleted

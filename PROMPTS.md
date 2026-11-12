@@ -64,18 +64,6 @@ This file documents how I used Amazon Q (AI coding assistant) during this projec
 
 ---
 
-## Entry 7 — 2026-11-12 — Test suite: CrudApplicationTests missing test profile
-
-**What I asked**: Run the full test suite to verify all tests pass before pushing.
-
-**What the tool produced**: A passing run for AuthIntegrationTest and AccountWorkflowTest, but CrudApplicationTests (the basic context load test) was silently failing because it was missing `@ActiveProfiles("test")` and `@Import(TestRedisConfig.class)`.
-
-**What was wrong**: The AI-generated `CrudApplicationTests` used `@SpringBootTest` with no profile, so it tried to load the full application context including Redis and PostgreSQL — neither of which is available in the test environment. The test was failing with `No qualifying bean of type StringRedisTemplate`.
-
-**What I did instead**: Added `@ActiveProfiles("test")` and `@Import(TestRedisConfig.class)` to `CrudApplicationTests`. This makes it use the H2 in-memory database and the mocked Redis bean, consistent with the other test classes. All 26 tests now pass.
-
----
-
 ## Entry 6 — 2026-10-23 — Deadlock prevention in concurrent transfers
 
 **What I asked**: How do you prevent deadlocks when two concurrent transfers lock the same two accounts in opposite order?
@@ -88,6 +76,18 @@ This file documents how I used Amazon Q (AI coding assistant) during this projec
 
 ---
 
+## Entry 7 — 2026-11-12 — Test suite: CrudApplicationTests missing test profile
+
+**What I asked**: Run the full test suite to verify all tests pass before pushing.
+
+**What the tool produced**: A passing run for AuthIntegrationTest and AccountWorkflowTest, but CrudApplicationTests (the basic context load test) was silently failing because it was missing `@ActiveProfiles("test")` and `@Import(TestRedisConfig.class)`.
+
+**What was wrong**: The AI-generated `CrudApplicationTests` used `@SpringBootTest` with no profile, so it tried to load the full application context including Redis and PostgreSQL — neither of which is available in the test environment. The test was failing with `No qualifying bean of type StringRedisTemplate`.
+
+**What I did instead**: Added `@ActiveProfiles("test")` and `@Import(TestRedisConfig.class)` to `CrudApplicationTests`. This makes it use the H2 in-memory database and the mocked Redis bean, consistent with the other test classes. All 26 tests now pass.
+
+---
+
 ## Entry 8 — 2026-11-12 — BCrypt strength and Redis connection latency
 
 **What I asked**: Investigate why login was slow on mobile and other devices.
@@ -97,3 +97,27 @@ This file documents how I used Amazon Q (AI coding assistant) during this projec
 **What was wrong**: The AI's default `BCryptPasswordEncoder()` uses strength 10, which is fine for a powerful server but adds 200–500ms per login on a free-tier CPU. It also had no Redis connection timeout — a slow Redis connection on first use could hang the login request for several seconds before failing open.
 
 **What I did instead**: Lowered BCrypt strength to 8 (still secure, ~4x faster on low-CPU hosts), added `spring.data.redis.timeout=500ms` and `connect-timeout=500ms` to cap Redis latency, added a Lettuce connection pool with `min-idle=1` to keep one warm connection, and added a keep-alive ping in `api.js` every 4 minutes to prevent the backend from sleeping on free-tier hosting.
+
+---
+
+## Entry 9 — 2026-11-12 — Audit endpoint returned all records with no pagination
+
+**What I asked**: Add pagination and filtering to the audit log endpoint.
+
+**What the tool produced**: A `GET /api/audit` endpoint that called `auditLogRepository.findAll()` and returned every record in one response.
+
+**What was wrong**: `findAll()` with no limit is a production anti-pattern — it loads the entire audit table into memory on every request. With thousands of entries this would cause out-of-memory errors and slow responses. The frontend was doing client-side filtering on the full dataset, which also breaks at scale.
+
+**What I did instead**: Added a `@Query` JPQL method to `AuditLogRepository` that accepts `actor`, `action`, `from`, and `to` parameters with a `Pageable` argument. The `AuditController` now accepts `?page=0&size=20&actor=...&action=...&from=...&to=...` query params and returns a paginated response with `totalElements` and `totalPages`. The frontend was updated to call the backend with these params instead of filtering locally.
+
+---
+
+## Entry 10 — 2026-11-12 — Account deletion was hard-delete, losing financial history
+
+**What I asked**: Add the ability for admins to delete/close accounts.
+
+**What the tool produced**: A `DELETE /api/accounts/{id}` endpoint that called `accountRepository.deleteById(id)`.
+
+**What was wrong**: Hard-deleting an account removes all associated transaction history and audit log references — this is wrong for a financial system. Regulators require financial records to be kept. Also, deleting an account with a non-zero balance would leave money unaccounted for.
+
+**What I did instead**: Changed it to a soft-delete — added `CLOSED` to the `Account.Status` enum and the close endpoint sets `status = CLOSED` instead of deleting the row. Added a guard that rejects closure if `balance != 0`. The account and all its transactions remain in the database and audit log permanently.
