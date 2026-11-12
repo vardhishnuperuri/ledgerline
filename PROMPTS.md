@@ -76,6 +76,18 @@ This file documents how I used Amazon Q (AI coding assistant) during this projec
 
 ---
 
+## Entry 6 — 2026-10-23 — Deadlock prevention in concurrent transfers
+
+**What I asked**: How do you prevent deadlocks when two concurrent transfers lock the same two accounts in opposite order?
+
+**What the tool produced**: An explanation of lock ordering — always acquire locks in the same order (by account ID) to prevent circular waits.
+
+**What was wrong**: The tool's initial transfer code locked `fromAccount` first, then `toAccount`. If two transfers run concurrently in opposite directions (A→B and B→A), each holds one lock and waits for the other — classic deadlock.
+
+**What I did instead**: Changed `TransactionService.transfer()` to always lock the account with the lower ID first, regardless of which is `from` and which is `to`. This is the standard lock-ordering solution. Documented in THREATS.md threat #5.
+
+---
+
 ## Entry 8 — 2026-11-12 — BCrypt strength and Redis connection latency
 
 **What I asked**: Investigate why login was slow on mobile and other devices.
@@ -85,12 +97,3 @@ This file documents how I used Amazon Q (AI coding assistant) during this projec
 **What was wrong**: The AI's default `BCryptPasswordEncoder()` uses strength 10, which is fine for a powerful server but adds 200–500ms per login on a free-tier CPU. It also had no Redis connection timeout — a slow Redis connection on first use could hang the login request for several seconds before failing open.
 
 **What I did instead**: Lowered BCrypt strength to 8 (still secure, ~4x faster on low-CPU hosts), added `spring.data.redis.timeout=500ms` and `connect-timeout=500ms` to cap Redis latency, added a Lettuce connection pool with `min-idle=1` to keep one warm connection, and added a keep-alive ping in `api.js` every 4 minutes to prevent the backend from sleeping on free-tier hosting.
-
-
-**What I asked**: How do you prevent deadlocks when two concurrent transfers lock the same two accounts in opposite order?
-
-**What the tool produced**: An explanation of lock ordering — always acquire locks in the same order (by account ID) to prevent circular waits.
-
-**What was wrong**: The tool's initial transfer code locked `fromAccount` first, then `toAccount`. If two transfers run concurrently in opposite directions (A→B and B→A), each holds one lock and waits for the other — classic deadlock.
-
-**What I did instead**: Changed `TransactionService.transfer()` to always lock the account with the lower ID first, regardless of which is `from` and which is `to`. This is the standard lock-ordering solution. Documented in THREATS.md threat #5.

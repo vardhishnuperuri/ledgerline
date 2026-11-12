@@ -5,7 +5,7 @@
 **Threat**: Attacker guesses or brute-forces passwords to gain access.
 
 **Mitigation**:
-- Passwords hashed with BCrypt (cost factor 10) — never stored in plaintext.
+- Passwords hashed with BCrypt (cost factor 8) — never stored in plaintext.
 - JWT tokens expire after 24 hours (`jwt.expiration=86400000`).
 - Login returns a generic "Invalid credentials" message for both wrong username and wrong password — no enumeration.
 
