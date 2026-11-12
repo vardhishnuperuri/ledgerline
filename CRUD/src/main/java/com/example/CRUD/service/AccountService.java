@@ -117,4 +117,18 @@ public class AccountService {
         return accountRepository.findAll()
                 .stream().map(AccountResponse::from).collect(Collectors.toList());
     }
+
+    @Transactional
+    public void closeAccount(Long accountId, String adminUsername) {
+        Account account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+        if (account.getStatus() == Account.Status.CLOSED)
+            throw new IllegalArgumentException("Account is already closed");
+        if (account.getBalance().compareTo(java.math.BigDecimal.ZERO) != 0)
+            throw new IllegalArgumentException("Cannot close account with non-zero balance");
+        account.setStatus(Account.Status.CLOSED);
+        accountRepository.save(account);
+        auditService.log(adminUsername, "ACCOUNT_CLOSED", "ACCOUNT", account.getId(),
+                "Account closed: " + account.getAccountNumber() + " owner=" + account.getOwner().getUsername());
+    }
 }

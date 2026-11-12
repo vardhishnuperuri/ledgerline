@@ -38,7 +38,7 @@ public class Account {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
-    public enum Status { PENDING, ACTIVE, REJECTED }
+    public enum Status { PENDING, ACTIVE, REJECTED, CLOSED }
     public enum AccountType { PERSONAL, BUSINESS, SAVINGS }
 
     public Long getId() { return id; }

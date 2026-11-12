@@ -64,4 +64,12 @@ public class AccountController {
     public ResponseEntity<List<AccountResponse>> getAllAccounts() {
         return ResponseEntity.ok(accountService.getAllAccounts());
     }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> closeAccount(@PathVariable Long id,
+                                              @AuthenticationPrincipal String username) {
+        accountService.closeAccount(id, username);
+        return ResponseEntity.noContent().build();
+    }
 }

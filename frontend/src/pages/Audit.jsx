@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../api';
 
 const ACTION_COLORS = {
@@ -8,7 +8,12 @@ const ACTION_COLORS = {
   DEPOSIT: 'badge-green',
   WITHDRAWAL: 'badge-red',
   TRANSFER: 'badge-blue',
+  ACCOUNT_APPROVED: 'badge-green',
+  ACCOUNT_REJECTED: 'badge-red',
+  ACCOUNT_CLOSED: 'badge-red',
 };
+
+const PAGE_SIZE = 20;
 
 function AuditSkeleton() {
   return (
@@ -16,15 +21,6 @@ function AuditSkeleton() {
       <div className="page-header">
         <div className="skeleton" style={{ height: 28, width: '20%', marginBottom: 8 }} />
         <div className="skeleton" style={{ height: 16, width: '35%' }} />
-      </div>
-      <div className="stats-grid">
-        {[1,2,3,4].map(i => (
-          <div key={i} className="skeleton-card">
-            <div className="skeleton skeleton-text" style={{ width: '50%' }} />
-            <div className="skeleton" style={{ height: 36, width: '40%', marginBottom: 8 }} />
-            <div className="skeleton skeleton-text" style={{ width: '60%' }} />
-          </div>
-        ))}
       </div>
       <div className="card">
         <div className="skeleton skeleton-title" />
@@ -42,98 +38,75 @@ function AuditSkeleton() {
   );
 }
 
-const PAGE_SIZE = 20;
-
 export default function Audit() {
-  const [logs, setLogs] = useState([]);
+  const [data, setData] = useState({ content: [], totalElements: 0, totalPages: 0, page: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
+  const [actor, setActor] = useState('');
   const [filterAction, setFilterAction] = useState('ALL');
-  const [page, setPage] = useState(1);
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [page, setPage] = useState(0);
 
-  useEffect(() => {
-    api.get('/audit')
-      .then(res => setLogs(res.data.reverse()))
+  const ACTIONS = ['ALL','LOGIN','REGISTER','ACCOUNT_REQUESTED','ACCOUNT_APPROVED','ACCOUNT_REJECTED',
+                   'ACCOUNT_CLOSED','DEPOSIT','WITHDRAWAL','TRANSFER'];
+
+  const load = useCallback(() => {
+    setLoading(true);
+    const params = new URLSearchParams({ page, size: PAGE_SIZE });
+    if (actor) params.append('actor', actor);
+    if (filterAction !== 'ALL') params.append('action', filterAction);
+    if (fromDate) params.append('from', new Date(fromDate).toISOString());
+    if (toDate) params.append('to', new Date(toDate + 'T23:59:59').toISOString());
+    api.get(`/audit?${params}`)
+      .then(res => setData(res.data))
       .catch(() => setError('Failed to load audit logs'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [page, actor, filterAction, fromDate, toDate]);
 
-  if (loading) return <AuditSkeleton />;
+  useEffect(() => { load(); }, [load]);
 
-  const actions = ['ALL', ...new Set(logs.map(l => l.action))];
+  function handleFilter() { setPage(0); load(); }
 
-  const filtered = logs.filter(l => {
-    const matchAction = filterAction === 'ALL' || l.action === filterAction;
-    const matchSearch = !search ||
-      l.actorUsername.toLowerCase().includes(search.toLowerCase()) ||
-      l.action.toLowerCase().includes(search.toLowerCase()) ||
-      (l.detail || '').toLowerCase().includes(search.toLowerCase());
-    return matchAction && matchSearch;
-  });
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-  const stats = {
-    total: logs.length,
-    logins: logs.filter(l => l.action === 'LOGIN').length,
-    transactions: logs.filter(l => ['DEPOSIT', 'WITHDRAWAL', 'TRANSFER'].includes(l.action)).length,
-    accounts: logs.filter(l => l.action === 'CREATE_ACCOUNT').length,
-  };
+  if (loading && data.content.length === 0) return <AuditSkeleton />;
 
   return (
     <div>
       <div className="page-header">
         <div className="page-title">Audit Log</div>
-        <div className="page-subtitle">Append-only record of every action in the system</div>
+        <div className="page-subtitle">Append-only record of every action — {data.totalElements} total events</div>
       </div>
 
       {error && <div className="alert alert-error"><span>⚠</span> {error}</div>}
 
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-label">Total Events</div>
-          <div className="stat-value">{stats.total}</div>
-          <div className="stat-sub">all time</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Logins</div>
-          <div className="stat-value">{stats.logins}</div>
-          <div className="stat-sub">authentication events</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Transactions</div>
-          <div className="stat-value">{stats.transactions}</div>
-          <div className="stat-sub">money movements</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Accounts Created</div>
-          <div className="stat-value">{stats.accounts}</div>
-          <div className="stat-sub">new accounts</div>
-        </div>
-      </div>
-
       <div className="card">
         <div className="card-header">
-          <span className="card-title">Events ({filtered.length})</span>
+          <span className="card-title">Events ({data.totalElements})</span>
         </div>
 
+        {/* Filters */}
         <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
-          <input
-            className="form-input"
-            placeholder="Search by actor, action or detail..."
-            value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1); }}
-            style={{ flex: 1, minWidth: '200px' }}
-          />
-          <select className="form-select" value={filterAction} onChange={e => { setFilterAction(e.target.value); setPage(1); }}
-            style={{ width: 'auto', minWidth: '150px' }}>
-            {actions.map(a => <option key={a} value={a}>{a === 'ALL' ? 'All Actions' : a}</option>)}
+          <input className="form-input" placeholder="Filter by actor..." value={actor}
+            onChange={e => setActor(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleFilter()}
+            style={{ flex: 1, minWidth: '160px' }} />
+          <select className="form-select" value={filterAction} onChange={e => { setFilterAction(e.target.value); setPage(0); }}
+            style={{ width: 'auto', minWidth: '160px' }}>
+            {ACTIONS.map(a => <option key={a} value={a}>{a === 'ALL' ? 'All Actions' : a}</option>)}
           </select>
+          <input className="form-input" type="date" value={fromDate}
+            onChange={e => { setFromDate(e.target.value); setPage(0); }}
+            style={{ width: 'auto' }} title="From date" />
+          <input className="form-input" type="date" value={toDate}
+            onChange={e => { setToDate(e.target.value); setPage(0); }}
+            style={{ width: 'auto' }} title="To date" />
+          {(actor || filterAction !== 'ALL' || fromDate || toDate) && (
+            <button className="btn btn-sm btn-outline" onClick={() => {
+              setActor(''); setFilterAction('ALL'); setFromDate(''); setToDate(''); setPage(0);
+            }}>✕ Clear</button>
+          )}
         </div>
 
-        {filtered.length === 0 ? (
+        {data.content.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon">📋</div>
             <div className="empty-state-text">No audit events found.</div>
@@ -143,16 +116,11 @@ export default function Audit() {
             <table>
               <thead>
                 <tr>
-                  <th>#</th>
-                  <th>Time</th>
-                  <th>Actor</th>
-                  <th>Action</th>
-                  <th>Entity</th>
-                  <th>Detail</th>
+                  <th>#</th><th>Time</th><th>Actor</th><th>Action</th><th>Entity</th><th>Detail</th>
                 </tr>
               </thead>
               <tbody>
-                {paginated.map(log => (
+                {data.content.map(log => (
                   <tr key={log.id}>
                     <td style={{ color: 'var(--gray-400)', fontSize: '0.78rem' }}>{log.id}</td>
                     <td style={{ whiteSpace: 'nowrap', color: 'var(--gray-500)', fontSize: '0.82rem' }}>
@@ -189,15 +157,17 @@ export default function Audit() {
           </div>
         )}
 
-        {totalPages > 1 && (
+        {/* Pagination */}
+        {data.totalPages > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
             <span style={{ fontSize: '0.82rem', color: 'var(--gray-500)' }}>
-              Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+              Page {page + 1} of {data.totalPages} · {data.totalElements} events
             </span>
             <div style={{ display: 'flex', gap: '0.35rem' }}>
-              <button className="btn btn-sm btn-outline" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>← Prev</button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1)
-                .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              <button className="btn btn-sm btn-outline" onClick={() => setPage(0)} disabled={page === 0}>«</button>
+              <button className="btn btn-sm btn-outline" onClick={() => setPage(p => p - 1)} disabled={page === 0}>‹ Prev</button>
+              {Array.from({ length: data.totalPages }, (_, i) => i)
+                .filter(p => p === 0 || p === data.totalPages - 1 || Math.abs(p - page) <= 1)
                 .reduce((acc, p, idx, arr) => {
                   if (idx > 0 && p - arr[idx - 1] > 1) acc.push('...');
                   acc.push(p);
@@ -206,9 +176,11 @@ export default function Audit() {
                 .map((p, i) => p === '...' ? (
                   <span key={`e${i}`} style={{ padding: '0.3rem 0.5rem', color: 'var(--gray-400)' }}>…</span>
                 ) : (
-                  <button key={p} className={`btn btn-sm ${page === p ? 'btn-primary' : 'btn-outline'}`} onClick={() => setPage(p)}>{p}</button>
+                  <button key={p} className={`btn btn-sm ${page === p ? 'btn-primary' : 'btn-outline'}`}
+                    onClick={() => setPage(p)}>{p + 1}</button>
                 ))}
-              <button className="btn btn-sm btn-outline" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>Next →</button>
+              <button className="btn btn-sm btn-outline" onClick={() => setPage(p => p + 1)} disabled={page >= data.totalPages - 1}>Next ›</button>
+              <button className="btn btn-sm btn-outline" onClick={() => setPage(data.totalPages - 1)} disabled={page >= data.totalPages - 1}>»</button>
             </div>
           </div>
         )}

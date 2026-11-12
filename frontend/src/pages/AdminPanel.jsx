@@ -5,6 +5,7 @@ import api from '../api';
 export default function AdminPanel() {
   const [pending, setPending] = useState([]);
   const [users, setUsers] = useState([]);
+  const [allAccounts, setAllAccounts] = useState([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [activeTab, setActiveTab] = useState('requests');
@@ -15,7 +16,15 @@ export default function AdminPanel() {
   useEffect(() => {
     loadPending();
     loadUsers();
+    loadAllAccounts();
   }, []);
+
+  async function loadAllAccounts() {
+    try {
+      const res = await api.get('/accounts/all');
+      setAllAccounts(res.data);
+    } catch { /* silent */ }
+  }
 
   async function loadPending() {
     try {
@@ -54,6 +63,18 @@ export default function AdminPanel() {
       await loadPending();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to reject');
+    }
+  }
+
+  async function closeAccount(id, accountNumber) {
+    if (!window.confirm(`Close account ${accountNumber}? This requires zero balance and cannot be undone.`)) return;
+    try {
+      await api.delete(`/accounts/${id}`);
+      setSuccess(`Account ${accountNumber} closed`);
+      await loadPending();
+      await loadUsers();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to close account');
     }
   }
 
@@ -111,10 +132,10 @@ export default function AdminPanel() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
-        {['requests', 'users'].map(tab => (
+        {['requests', 'users', 'accounts'].map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={`btn btn-sm ${activeTab === tab ? 'btn-primary' : 'btn-outline'}`}>
-            {tab === 'requests' ? `Account Requests (${pending.length})` : 'User Management'}
+            {tab === 'requests' ? `Account Requests (${pending.length})` : tab === 'users' ? 'User Management' : `All Accounts (${allAccounts.length})`}
           </button>
         ))}
         <Link to="/audit" className="btn btn-sm btn-outline" style={{ marginLeft: 'auto' }}>
@@ -255,6 +276,50 @@ export default function AdminPanel() {
                     <td><span className={`badge ${roleColor[u.role]}`}>{roleLabel[u.role]}</span></td>
                     <td style={{ color: 'var(--gray-500)', fontSize: '0.82rem' }}>
                       {new Date(u.createdAt).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      {activeTab === 'accounts' && (
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">All Accounts</span>
+          </div>
+          <div className="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th><th>Account No.</th><th>Owner</th><th>Type</th><th>Balance</th><th>Status</th><th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allAccounts.map(acc => (
+                  <tr key={acc.id}>
+                    <td style={{ color: 'var(--gray-400)', fontSize: '0.78rem' }}>{acc.id}</td>
+                    <td style={{ fontFamily: 'monospace', fontSize: '0.82rem' }}>{acc.accountNumber}</td>
+                    <td style={{ fontWeight: 500 }}>{acc.owner?.username}</td>
+                    <td><span className="badge badge-blue">{acc.accountType}</span></td>
+                    <td style={{ fontWeight: 600 }}>${parseFloat(acc.balance).toFixed(2)}</td>
+                    <td>
+                      <span className={`badge ${
+                        acc.status === 'ACTIVE' ? 'badge-green' :
+                        acc.status === 'PENDING' ? 'badge-amber' :
+                        acc.status === 'CLOSED' ? 'badge-gray' : 'badge-red'
+                      }`}>{acc.status}</span>
+                    </td>
+                    <td>
+                      {acc.status === 'ACTIVE' && (
+                        <button className="btn btn-sm btn-outline"
+                          style={{ color: '#dc2626', borderColor: '#dc2626', fontSize: '0.75rem' }}
+                          onClick={() => closeAccount(acc.id, acc.accountNumber)}>
+                          Close
+                        </button>
+                      )}
+                      {acc.status !== 'ACTIVE' && <span style={{ color: 'var(--gray-400)', fontSize: '0.82rem' }}>—</span>}
                     </td>
                   </tr>
                 ))}
